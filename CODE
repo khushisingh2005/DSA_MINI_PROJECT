@@ -1,354 +1,183 @@
-CODE:
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <time.h>
+#include <string.h>
 
 #define MAX_INPUT_SIZE 256
-#define MAX_STACK_SIZE 100 // Maximum size for the stack
-#define MAX_QUEUE_SIZE 100 // Maximum size for the queue
+#define MAX_STACK_SIZE 10
+#define MAX_QUEUE_SIZE 10
 
-// Structure for conversation history (stack)
+// Stack for undo functionality
 typedef struct {
-    char userInput[MAX_INPUT_SIZE];   // User input text
-    char botResponse[MAX_INPUT_SIZE];  // Bot's response
-    char timestamp[50];                // Timestamp for the conversation
-} Conversation;
+    int choices[MAX_STACK_SIZE];
+    int top;
+} Stack;
 
-// Stack for managing conversation history
+// Queue for user feedback (not fully utilized here, but included)
 typedef struct {
-    Conversation stack[MAX_STACK_SIZE]; // Array to store conversation history
-    int top;                             // Index of the top element
-} ConversationStack;
+    char feedback[MAX_QUEUE_SIZE][MAX_INPUT_SIZE];
+    int front, rear, size;
+} Queue;
 
-// Queue for managing user requests
-typedef struct {
-    char queue[MAX_QUEUE_SIZE][MAX_INPUT_SIZE]; // Array to store user requests
-    int front; // Index of the front element
-    int rear;  // Index of the rear element
-} RequestQueue;
+// Node for linked list to store feelings
+typedef struct Node {
+    char feeling[MAX_INPUT_SIZE];
+    struct Node *next;
+} Node;
 
-// Structure for user profiles (linked list)
-typedef struct UserProfile {
-    char username[MAX_INPUT_SIZE]; // User's name
-    struct UserProfile *next;      // Pointer to the next user profile
-} UserProfile;
+// Function prototypes
+void shareFeelings(Node **head);
+void breathingExercise();
+void listenToMusic();
+void talkToSomeone();
+void selfHelpSuggestions();
+void findNearbyLocations();
+void push(Stack *stack, int choice);
+int pop(Stack *stack);
+void append(Node **head, const char *feeling);
 
-// Initialize stack
-ConversationStack conversationStack = {.top = -1};
-
-// Initialize queue
-RequestQueue requestQueue = {.front = 0, .rear = 0};
-
-// Head of the linked list for storing user profiles
-UserProfile *userProfileHead = NULL;
-
-// Function to get the current timestamp
-void getTimeStamp(char *buffer) {
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime); // Get the current time
-    timeinfo = localtime(&rawtime); // Convert to local time format
-    strftime(buffer, 50, "%Y-%m-%d %H:%M:%S", timeinfo); // Format timestamp
-}
-
-// Function to push a conversation onto the stack
-void pushConversation(const char *userInput, const char *botResponse) {
-    if (conversationStack.top < MAX_STACK_SIZE - 1) {
-        conversationStack.top++;
-        strcpy(conversationStack.stack[conversationStack.top].userInput, userInput);
-        strcpy(conversationStack.stack[conversationStack.top].botResponse, botResponse);
-        getTimeStamp(conversationStack.stack[conversationStack.top].timestamp); // Set timestamp
-    } else {
-        printf("Warning: The conversation stack is full. New conversations will not be tracked.\n");
-    }
-}
-
-// Function to save conversation history to a file
-void saveConversationHistory() {
-    FILE *file = fopen("conversation_history.txt", "a");
-    if (file == NULL) {
-        printf("Error: Unable to open file for saving conversation history.\n");
-        return;
-    }
-
-    // Write conversations from the stack to the file
-    for (int i = 0; i <= conversationStack.top; i++) {
-        fprintf(file, "[%s] User: %s\n", conversationStack.stack[i].timestamp, conversationStack.stack[i].userInput);
-        fprintf(file, "[%s] Bot: %s\n", conversationStack.stack[i].timestamp, conversationStack.stack[i].botResponse);
-    }
-    fclose(file);
-    printf("The conversation history has been successfully saved.\n");
-}
-
-// Function to enqueue a user request
-void enqueueRequest(const char *request) {
-    if ((requestQueue.rear + 1) % MAX_QUEUE_SIZE != requestQueue.front) {
-        strcpy(requestQueue.queue[requestQueue.rear], request);
-        requestQueue.rear = (requestQueue.rear + 1) % MAX_QUEUE_SIZE; // Circular increment
-    } else {
-        printf("Warning: The request queue is full. Additional requests cannot be added at this time.\n");
-    }
-}
-
-// Function to dequeue a user request
-char* dequeueRequest() {
-    if (requestQueue.front != requestQueue.rear) {
-        char *request = requestQueue.queue[requestQueue.front];
-        requestQueue.front = (requestQueue.front + 1) % MAX_QUEUE_SIZE; // Circular increment
-        return request;
-    } else {
-        return NULL; // Queue is empty
-    }
-}
-
-// Function to get bot responses based on user input
-void getBotResponse(const char *input, char *response) {
-    // Keywords to detect user emotions
-    const char *sadKeywords[] = {"sad", "low", "depressed", "broken", "lost", "alone", "left out", "ignored", "breakup"};
-    const char *happyKeywords[] = {"happy", "joy", "excited", "content", "cheerful", "elated"};
-    const char *anxietyKeywords[] = {"anxiety", "stress", "worried", "nervous", "panic", "overthinking", "workload"};
-    const char *angryKeywords[] = {"angry", "frustrated", "annoyed", "mad", "upset", "rage"};
-    const char *ptsdKeywords[] = {"ptsd", "trauma", "flashback"};
-    const char *familyKeywords[] = {"family", "home", "relationships"};
-    const char *financialKeywords[] = {"financial", "money", "debt", "broke"};
-    const char *failureKeywords[] = {"failure", "disappointment", "setback"};
-    const char *careerKeywords[] = {"career", "job", "work", "stress"};
-
-    // Responses for different sentiments
-    const char *sadResponses[] = {
-        "I truly empathize with your feelings. It's vital to talk to someone you trust, as discussing emotions can aid in processing them.",
-        "Acknowledging your sadness is an essential first step towards healing. Allow yourself the time to feel and understand these emotions.",
-        "You're not alone in feeling this way. Many people experience sadness, and it's okay to reach out for support.",
-        "If these feelings persist, it may be beneficial to connect with a mental health professional who can provide guidance."
-    };
-    const char *happyResponses[] = {
-        "It's fantastic to hear that you're feeling happy! What has been a source of joy for you lately? Cherishing those moments is essential for mental well-being.",
-        "Joyful experiences are important for maintaining mental health. It's wonderful that you're in a positive state of mind. Keep spreading that joy!"
-    };
-    const char *anxietyResponses[] = {
-        "I understand that anxiety can be overwhelming. It’s beneficial to practice grounding techniques or mindfulness exercises to help ease those feelings.",
-        "Creating a list of manageable tasks can help tackle your concerns in a structured way. Taking small steps can significantly reduce anxiety."
-    };
-    const char *angryResponses[] = {
-        "I'm sorry to hear that you're feeling this way. Engaging in physical activities like exercise can help channel that anger into something constructive.",
-        "Understanding the root causes of your anger can lead to clarity. It might help to explore those feelings in a safe environment."
-    };
-    const char *ptsdResponses[] = {
-        "It’s crucial to discuss what you’re experiencing. Sharing your feelings can be a significant step towards healing.",
-        "Grounding techniques can be useful during flashbacks. Techniques like deep breathing or focusing on your surroundings can help."
-    };
-    const char *familyResponses[] = {
-        "Family dynamics can be complex and challenging. Open and honest communication is key to understanding each other better.",
-        "Consider family therapy as a safe space to address concerns and strengthen relationships within your family unit."
-    };
-    const char *financialResponses[] = {
-        "Financial stress can be daunting. Establishing a clear budget may help you see the bigger picture and alleviate some of that stress.",
-        "Creating an emergency fund can provide peace of mind and help you feel more secure in managing unexpected expenses."
-    };
-    const char *failureResponses[] = {
-        "Experiencing failure can feel overwhelming, but it's often a stepping stone towards growth and resilience. Reflecting on the experience can provide valuable lessons.",
-        "It's perfectly normal to feel disappointed. Emphasizing self-compassion and understanding can aid in the healing process."
-    };
-    const char *careerResponses[] = {
-        "Career-related stress can be particularly challenging. Effective time management and prioritizing self-care can greatly assist in managing this stress.",
-        "Practicing stress-relief techniques, such as mindfulness or physical activity, can be very beneficial in navigating career pressures."
-    };
-
-    // Check for keywords in the user's input and respond accordingly
-    for (int i = 0; i < sizeof(sadKeywords) / sizeof(sadKeywords[0]); i++) {
-        if (strstr(input, sadKeywords[i]) != NULL) {
-            strcpy(response, sadResponses[rand() % (sizeof(sadResponses) / sizeof(sadResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(happyKeywords) / sizeof(happyKeywords[0]); i++) {
-        if (strstr(input, happyKeywords[i]) != NULL) {
-            strcpy(response, happyResponses[rand() % (sizeof(happyResponses) / sizeof(happyResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(anxietyKeywords) / sizeof(anxietyKeywords[0]); i++) {
-        if (strstr(input, anxietyKeywords[i]) != NULL) {
-            strcpy(response, anxietyResponses[rand() % (sizeof(anxietyResponses) / sizeof(anxietyResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(angryKeywords) / sizeof(angryKeywords[0]); i++) {
-        if (strstr(input, angryKeywords[i]) != NULL) {
-            strcpy(response, angryResponses[rand() % (sizeof(angryResponses) / sizeof(angryResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(ptsdKeywords) / sizeof(ptsdKeywords[0]); i++) {
-        if (strstr(input, ptsdKeywords[i]) != NULL) {
-            strcpy(response, ptsdResponses[rand() % (sizeof(ptsdResponses) / sizeof(ptsdResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(familyKeywords) / sizeof(familyKeywords[0]); i++) {
-        if (strstr(input, familyKeywords[i]) != NULL) {
-            strcpy(response, familyResponses[rand() % (sizeof(familyResponses) / sizeof(familyResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(financialKeywords) / sizeof(financialKeywords[0]); i++) {
-        if (strstr(input, financialKeywords[i]) != NULL) {
-            strcpy(response, financialResponses[rand() % (sizeof(financialResponses) / sizeof(financialResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(failureKeywords) / sizeof(failureKeywords[0]); i++) {
-        if (strstr(input, failureKeywords[i]) != NULL) {
-            strcpy(response, failureResponses[rand() % (sizeof(failureResponses) / sizeof(failureResponses[0]))]);
-            return;
-        }
-    }
-
-    for (int i = 0; i < sizeof(careerKeywords) / sizeof(careerKeywords[0]); i++) {
-        if (strstr(input, careerKeywords[i]) != NULL) {
-            strcpy(response, careerResponses[rand() % (sizeof(careerResponses) / sizeof(careerResponses[0]))]);
-            return;
-        }
-    }
-
-    // Default response if no keywords are found
-    strcpy(response, "I'm here to help! Can you tell me more about what's on your mind? Your feelings are important to me.");
-}
-
-// Function to play a game
-void playGame() {
-    int choice;
-    printf("Let's take a break and play a game! Please choose from the options below:\n");
-    printf("1. Riddle\n");
-    printf("2. Quiz\n");
-    printf("Enter your choice (1 or 2): ");
-    scanf("%d", &choice);
-    getchar(); // Clear the newline character
-
-    switch (choice) {
-        case 1: {
-            // Present a riddle to the user
-            printf("Here's a riddle for you: What has keys but can't open locks?\n");
-            printf("Your answer: ");
-            char answer[50];
-            fgets(answer, 50, stdin);
-            answer[strcspn(answer, "\n")] = 0; // Remove the newline
-            if (strcasecmp(answer, "piano") == 0) {
-                printf("Congratulations! You've solved the riddle. A piano has keys but can't open locks.\n");
-            } else {
-                printf("That's not the answer I was looking for. The correct answer is a piano.\n");
-            }
-            break;
-        }
-        case 2: {
-            // Present a quiz question to the user
-            printf("Let's test your knowledge with a quiz question! What is the capital of France?\n");
-            printf("1. Berlin\n");
-            printf("2. Madrid\n");
-            printf("3. Paris\n");
-            printf("Enter your choice (1, 2, or 3): ");
-            int answer;
-            scanf("%d", &answer);
-            getchar(); // Clear the newline
-            if (answer == 3) {
-                printf("Excellent! The capital of France is indeed Paris. Well done!\n");
-            } else {
-                printf("That's not correct. The capital of France is Paris. But don't worry; quizzes are a fun way to learn!\n");
-            }
-            break;
-        }
-        default:
-            printf("It seems there was an issue with your choice. Let's try a different game next time!\n");
-            break;
-    }
-}
-
-// Function to add a user profile
-void addUserProfile(const char *username) {
-    UserProfile *newProfile = (UserProfile *)malloc(sizeof(UserProfile)); // Allocate memory for a new user profile
-    if (newProfile != NULL) { // Ensure memory allocation was successful
-        strcpy(newProfile->username, username);
-        newProfile->next = userProfileHead; // Point to the previous head
-        userProfileHead = newProfile; // Update head to the new profile
-        printf("User profile for '%s' has been successfully added.\n", username);
-    } else {
-        printf("Error: Memory allocation for user profile failed.\n");
-    }
-}
-
-// Main function
 int main() {
-    char userInput[MAX_INPUT_SIZE]; // Buffer for user input
-    char botResponse[MAX_INPUT_SIZE]; // Buffer for bot response
-    char playGameResponse[MAX_INPUT_SIZE]; // Buffer for game response
-    char storeConversationResponse[MAX_INPUT_SIZE]; // Buffer for storing conversation response
+    int choice;
+    Stack actionStack = { .top = -1 };
+    Node *feelingsList = NULL;
 
-    srand(time(NULL)); // Seed for random number generation
+    printf("Welcome! Let's start by having you share your feelings.\n");
 
-    printf("Hello! I'm your virtual assistant, here to help you with any questions or concerns you might have today.\n");
-
-    // Example of adding a user profile
-    addUserProfile("User1");
+    // User shares their feelings
+    shareFeelings(&feelingsList);
 
     while (1) {
-        printf("You: ");
-        fgets(userInput, MAX_INPUT_SIZE, stdin);
-        userInput[strcspn(userInput, "\n")] = 0; // Remove the newline character
+        printf("\nChoose an option:\n");
+        printf("1. Try a breathing exercise\n");
+        printf("2. Listen to some soothing music\n");
+        printf("3. Talk to someone near you\n");
+        printf("4. Get some self-help suggestions\n");
+        printf("5. Find a nearby temple or garden\n");
+        printf("6. Undo last action\n");
+        printf("7. Exit\n");
+        printf("Enter your choice (1-7): ");
 
-        if (strcmp(userInput, "exit") == 0) {
-            printf("Thank you for chatting with me today! I hope you found our conversation helpful. Have a wonderful day ahead!\n");
-            break; // Exit the loop if the user types 'exit'
+        scanf("%d", &choice);
+        getchar(); // Clear the newline character
+
+        // Push the current choice onto the stack
+        push(&actionStack, choice);
+
+        switch (choice) {
+            case 1:
+                breathingExercise();
+                break;
+            case 2:
+                listenToMusic();
+                break;
+            case 3:
+                talkToSomeone();
+                break;
+            case 4:
+                selfHelpSuggestions();
+                break;
+            case 5:
+                findNearbyLocations();
+                break;
+            case 6:
+                if (actionStack.top >= 0) {
+                    printf("Undoing last action: %d\n", pop(&actionStack));
+                } else {
+                    printf("No actions to undo.\n");
+                }
+                break;
+            case 7:
+                printf("Thank you for chatting! Take care of yourself.\n");
+                // Free the linked list
+                while (feelingsList) {
+                    Node *temp = feelingsList;
+                    feelingsList = feelingsList->next;
+                    free(temp);
+                }
+                return 0; // Exit the program
+            default:
+                printf("Invalid choice. Please try again.\n");
+                break;
         }
-
-        enqueueRequest(userInput); // Enqueue the user input for processing
-        char *request = dequeueRequest(); // Dequeue the request for processing
-        if (request != NULL) {
-            getBotResponse(request, botResponse); // Get the bot's response based on user input
-            printf("Bot: %s\n", botResponse);
-
-            // Track the conversation by pushing it to the stack
-            pushConversation(request, botResponse);
-        }
-
-        // Offer to play a game
-        printf("Would you like to take a break and play a game? (yes/no): ");
-        fgets(playGameResponse, MAX_INPUT_SIZE, stdin);
-        playGameResponse[strcspn(playGameResponse, "\n")] = 0; // Remove newline
-
-        if (strcasecmp(playGameResponse, "yes") == 0) {
-            playGame(); // Call the play game function
-        }
-
-        // Ask if the user wants to store the conversation history
-        printf("Would you like to save this conversation for later reference? (yes/no): ");
-        fgets(storeConversationResponse, MAX_INPUT_SIZE, stdin);
-        storeConversationResponse[strcspn(storeConversationResponse, "\n")] = 0; // Remove newline
-
-        if (strcasecmp(storeConversationResponse, "yes") == 0) {
-            saveConversationHistory(); // Save the conversation history
-        }
-    }
-
-    // Save conversation history to a file upon exit
-    saveConversationHistory();
-
-    // Free allocated memory for user profiles
-    while (userProfileHead != NULL) {
-        UserProfile *temp = userProfileHead;
-        userProfileHead = userProfileHead->next; // Move to the next node
-        free(temp); // Free memory of the current node
     }
 
     return 0; // Indicate successful completion of the program
 }
+
+// Function implementations
+void shareFeelings(Node **head) {
+    printf("Please describe how you're feeling:\n");
+    char feelingDescription[MAX_INPUT_SIZE];
+    fgets(feelingDescription, MAX_INPUT_SIZE, stdin);
+    feelingDescription[strcspn(feelingDescription, "\n")] = 0; // Remove newline
+    append(head, feelingDescription);
+    printf("Thank you for sharing. It's important to express your feelings.\n");
+}
+
+void append(Node **head, const char *feeling) {
+    Node *newNode = (Node *)malloc(sizeof(Node));
+    strcpy(newNode->feeling, feeling);
+    newNode->next = NULL;
+
+    if (*head == NULL) {
+        *head = newNode;
+    } else {
+        Node *temp = *head;
+        while (temp->next != NULL) {
+            temp = temp->next;
+        }
+        temp->next = newNode;
+    }
+}
+
+void breathingExercise() {
+    printf("Breathing Exercise:\n");
+    printf("1. Inhale deeply for 4 counts.\n");
+    printf("2. Hold your breath for 4 counts.\n");
+    printf("3. Exhale slowly for 4 counts.\n");
+    printf("4. Repeat this for 5 minutes.\n");
+}
+
+void listenToMusic() {
+    printf("Here are some soothing music suggestions:\n");
+    printf("1. Relaxing Music 1: https://www.youtube.com/watch?v=lFcSrYw-ARY\n");
+    printf("2. Nature Sounds: https://www.youtube.com/watch?v=1ZYbU82GVz4\n");
+    printf("3. Meditation Music: https://www.youtube.com/watch?v=1zBNJ-hNdXo\n");
+    printf("4. Calm Piano Music: https://www.youtube.com/watch?v=yJg-Y5byMMw\n");
+    printf("5. Ocean Waves: https://www.youtube.com/watch?v=AS5DOmZ33Mo\n");
+}
+
+void talkToSomeone() {
+    printf("It's good to talk to someone. Consider reaching out to a friend or family member.\n");
+    printf("You can also talk to a mental health professional if you feel comfortable.\n");
+}
+
+void selfHelpSuggestions() {
+    printf("Here are some self-help suggestions:\n");
+    printf("- Journaling your thoughts.\n");
+    printf("- Practicing mindfulness meditation.\n");
+    printf("- Engaging in physical activity.\n");
+    printf("- Reading a book that inspires you.\n");
+}
+
+void findNearbyLocations() {
+    printf("You can visit:\n");
+    printf("- Local Temple: https://www.google.com/search?q=temples+near+me&rlz=1C1CHBD_enIN1074IN1074&oq=temples+near+&gs_lcrp=EgZjaHJvbWUqBwgBEAAYjwIyBggAEEUYOTIHCAEQABiPAtIBCTc5MTBqMGoxNagCCLACAQ&sourceid=chrome&ie=UTF-8/\n");
+    printf("- Local Garden: https://www.google.com/search?q=garden+near+me&rlz=1C1CHBD_enIN1074IN1074&oq=garden+near+me&gs_lcrp=EgZjaHJvbWUyDwgAEEUYORixAxjJAxiABDINCAEQABiSAxiABBiKBTINCAIQABiSAxiABBiKBTIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCTY2MDlqMGoxNagCCLACAQ&sourceid=chrome&ie=UTF-8/\n");
+}
+
+void push(Stack *stack, int choice) {
+    if (stack->top < MAX_STACK_SIZE - 1) {
+        stack->choices[++stack->top] = choice;
+    }
+}
+
+int pop(Stack *stack) {
+    if (stack->top >= 0) {
+        return stack->choices[stack->top--];
+    }
+    return -1; // Indicate stack is empty
+}
+
 
 
 
